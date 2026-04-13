@@ -1,0 +1,13 @@
+# Исключаем файлы и директории, которые не нужны в Docker образе
+.git
+.gitignore
+README.md
+.DS_Store
+.idea
+*.iml
+.vscode
+node_modules
+target/
+.Dockerfile
+docker-compose*.yml
+!.dockerignore

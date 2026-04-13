@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="utf-8">
+    <title>Заказы - Витрина магазина</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+</head>
+
+<body class="bg-light">
+<div class="container p-2">
+    <div class="row p-2">
+        <div class="col">
+            <div class="hstack gap-3">
+                <h2>
+                    <span class="badge text-bg-success">Мои заказы</span>
+                </h2>
+                <a href="/cart/items" class="btn btn-secondary bi bi-cart4 ms-auto"> Корзина</a>
+                <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Orders list -->
+    <div class="row p-2" th:each="order : ${orders}">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">
+                    <a th:text="'Заказ №' + ${order.id}" th:href="@{/orders/{id}(id=${order.id})}"></a>
+                    <span class="badge bg-secondary float-end" th:text="${#temporals.format(order.createdAt, 'dd.MM.yyyy HH:mm')}"></span>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Сумма: <span th:text="${order.totalSum} + ' руб.'"></span></h5>
+                    <p class="card-text text-muted">Нажмите на заказ для просмотра деталей</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty orders -->
+    <div class="row p-2" th:if="${orders.isEmpty()}">
+        <div class="col text-center">
+            <div class="alert alert-info">
+                <i class="bi bi-inbox"></i> У вас пока нет заказов
+            </div>
+            <a href="/items" class="btn btn-primary">Перейти к покупкам</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>
