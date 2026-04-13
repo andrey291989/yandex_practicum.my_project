@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app-dev:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/ecommerce_db
+      - SPRING_DATASOURCE_USERNAME=myuser
+      - SPRING_DATASOURCE_PASSWORD=mypassword
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      # Mount source code for hot reloading (if supported by the application)
+      - ./src:/app/src
+      - ~/.m2:/home/spring/.m2
+    networks:
+      - ecommerce-network
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=ecommerce_db
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d ecommerce_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ecommerce-network
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  ecommerce-network:
+    driver: bridge
