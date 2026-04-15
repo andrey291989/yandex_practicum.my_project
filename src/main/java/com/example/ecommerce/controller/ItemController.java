@@ -5,18 +5,21 @@ import com.example.ecommerce.dto.PagingDTO;
 import com.example.ecommerce.entity.Item;
 import com.example.ecommerce.service.CartService;
 import com.example.ecommerce.service.ItemService;
-import org.springframework.data.domain.Page;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Mono;
 
-import jakarta.servlet.http.HttpSession;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 public class ItemController {
+
+    private static final Logger log = LoggerFactory.getLogger(ItemController.class);
 
     private final ItemService itemService;
     private final CartService cartService;
@@ -27,74 +30,78 @@ public class ItemController {
     }
 
     @GetMapping("/")
-    public String redirectToItems() {
-        return "redirect:/items";
+    public Mono<String> redirectToItems() {
+        return Mono.just("redirect:/items");
     }
 
     @GetMapping("/items")
-    public String getItems(
-            HttpSession session,
+    public Mono<String> getItems(
+            WebSession session,
             @RequestParam(required = false) String search,
             @RequestParam(required = false, defaultValue = "ALPHA") String sort,
             @RequestParam(required = false, defaultValue = "1") int pageNumber,
             @RequestParam(required = false, defaultValue = "10") int pageSize,
             Model model) {
 
-        if (pageNumber < 1) pageNumber = 1;
-        if (pageSize < 1) pageSize = 10;
+        int validPageNumber = Math.max(pageNumber, 1);
+        int validPageSize = Math.max(pageSize, 1);
 
-        Page<Item> itemPage = itemService.getItemsPage(search, sort, pageNumber, pageSize);
-        Map<Long, Integer> cartItems = cartService.getCartItems(session);
+        log.info("GET /items - search: {}, sort: {}, page: {}, size: {}",
+                search, sort, validPageNumber, validPageSize);
 
-        // Преобразуем Item в ItemDTO и добавляем количество в корзине
-        List<ItemDTO> items = new ArrayList<>();
-        for (Item item : itemPage.getContent()) {
-            int cartCount = cartItems.getOrDefault(item.getId(), 0);
-            items.add(new ItemDTO(
-                    item.getId(),
-                    item.getTitle(),
-                    item.getDescription(),
-                    item.getImgPath(),
-                    item.getPrice(),
-                    item.getCount(),  // stockCount
-                    cartCount
-            ));
-        }
+        return Mono.zip(
+                        itemService.getItemsPage(search, sort, validPageNumber, validPageSize)
+                                .collectList(),
+                        itemService.getTotalCount(search),
+                        cartService.getCartItems(session)
+                )
+                .flatMap(tuple -> {
+                    List<ItemDTO> items = tuple.getT1().stream()
+                            .map(item -> {
+                                int cartCount = tuple.getT3().getOrDefault(item.getId(), 0);
+                                return ItemDTO.fromEntity(item, cartCount);
+                            })
+                            .collect(Collectors.toList());
 
-        PagingDTO paging = new PagingDTO(
-                pageSize,
-                pageNumber,
-                pageNumber > 1,
-                itemPage.hasNext()
-        );
+                    long totalElements = tuple.getT2();
+                    int totalPages = (int) Math.ceil((double) totalElements / validPageSize);
+                    boolean hasPrevious = validPageNumber > 1;
+                    boolean hasNext = validPageNumber < totalPages;
 
-        model.addAttribute("items", items);  // Теперь передаем плоский список
-        model.addAttribute("search", search != null ? search : "");
-        model.addAttribute("sort", sort);
-        model.addAttribute("paging", paging);
+                    PagingDTO paging = new PagingDTO(
+                            validPageSize,
+                            validPageNumber,
+                            hasPrevious,
+                            hasNext,
+                            totalElements,
+                            totalPages
+                    );
 
-        return "items";
+                    model.addAttribute("items", items);
+                    model.addAttribute("search", search != null ? search : "");
+                    model.addAttribute("sort", sort);
+                    model.addAttribute("paging", paging);
+
+                    return Mono.just("items");
+                });
     }
 
     @GetMapping("/items/{id}")
-    public String getItemDetails(HttpSession session, @PathVariable Long id, Model model) {
-        Item item = itemService.getItemById(id);
-        if (item == null) {
-            return "redirect:/items";
-        }
+    public Mono<String> getItemDetails(
+            WebSession session,
+            @PathVariable Long id,
+            Model model) {
 
-        Map<Long, Integer> cartItems = cartService.getCartItems(session);
-        int cartCount = cartItems.getOrDefault(id, 0);
+        log.info("GET /items/{}", id);
 
-        model.addAttribute("item", new ItemDTO(
-                item.getId(),
-                item.getTitle(),
-                item.getDescription(),
-                item.getImgPath(),
-                item.getPrice(),
-                item.getCount(),
-                cartCount
-        ));
-        return "item";
+        return itemService.getItemById(id)
+                .flatMap(item -> cartService.getCartItems(session)
+                        .map(cartItems -> {
+                            int cartCount = cartItems.getOrDefault(id, 0);
+                            ItemDTO itemDTO = ItemDTO.fromEntity(item, cartCount);
+                            model.addAttribute("item", itemDTO);
+                            return "item";
+                        }))
+                .switchIfEmpty(Mono.just("redirect:/items"));
     }
 }

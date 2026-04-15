@@ -1,48 +1,70 @@
 package com.example.ecommerce.service;
 
-import com.example.ecommerce.dto.OrderDetailsDTO;
-import com.example.ecommerce.dto.OrderSummaryDTO;
+import com.example.ecommerce.dto.OrderDTO;
+import com.example.ecommerce.dto.OrderItemDTO;
 import com.example.ecommerce.entity.Order;
+import com.example.ecommerce.entity.OrderItem;
+import com.example.ecommerce.repository.OrderItemRepository;
 import com.example.ecommerce.repository.OrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
-@Transactional(readOnly = true)
 public class OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository) {
         this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
     }
 
-
-    public List<OrderSummaryDTO> getAllOrderSummaries() {
-        return orderRepository.findAll().stream()
-                .map(OrderSummaryDTO::fromEntity)
-                .collect(Collectors.toList());
+    /**
+     * Получение списка заказов (без деталей)
+     */
+    public Flux<OrderDTO> getAllOrders() {
+        return orderRepository.findAllByOrderByCreatedAtDesc()
+                .map(OrderDTO::summaryFromEntity);
     }
 
-
-    public OrderDetailsDTO getOrderDetails(Long id) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-
-        order.getItems().size(); // Триггерим загрузку (если нужно)
-        return OrderDetailsDTO.fromEntity(order);
+    /**
+     * Получение заказа с деталями (позициями)
+     */
+    public Mono<OrderDTO> getOrderWithDetails(Long id) {
+        return orderRepository.findById(id)
+                .flatMap(order -> orderItemRepository.findAllByOrderId(order.getId())
+                        .map(OrderItemDTO::fromEntity)
+                        .collectList()
+                        .map(items -> OrderDTO.fromEntity(order, items))
+                );
     }
 
-
-    public Order getOrderById(Long id) {
-        return orderRepository.findById(id).orElse(null);
+    /**
+     * Сохранение заказа и его позиций
+     */
+    public Mono<Order> saveOrder(Order order, List<OrderItem> items) {
+        return orderRepository.save(order)
+                .flatMap(savedOrder -> {
+                    // Сохраняем все позиции заказа с установленным orderId
+                    items.forEach(item -> item.setOrderId(savedOrder.getId()));
+                    return orderItemRepository.saveAll(items)
+                            .then()
+                            .thenReturn(savedOrder);
+                });
     }
 
-    @Transactional
-    public Order saveOrder(Order order) {
+    /**
+     * Сохранение только заказа (без позиций)
+     */
+    public Mono<Order> saveOrderOnly(Order order) {
         return orderRepository.save(order);
     }
 }

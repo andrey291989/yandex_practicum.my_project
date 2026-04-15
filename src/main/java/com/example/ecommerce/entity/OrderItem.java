@@ -1,15 +1,14 @@
 package com.example.ecommerce.entity;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
-@Table(name = "order_items")
+@Table("order_items")
 public class OrderItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
+    private Long orderId;  // Внешний ключ, связь вручную
     private String title;
     private String description;
     private String imgPath;
@@ -18,29 +17,40 @@ public class OrderItem {
 
     public OrderItem() {}
 
-    public OrderItem(Item item, Integer count) {
-        this.title = item.getTitle();
-        this.description = item.getDescription();
-        this.imgPath = item.getImgPath();
-        this.price = item.getPrice();
+    public OrderItem(Long orderId, String title, String description, String imgPath, Long price, Integer count) {
+        this.orderId = orderId;
+        this.title = title;
+        this.description = description;
+        this.imgPath = imgPath;
+        this.price = price;
         this.count = count;
     }
 
+    // Getters
     public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
+    public Long getOrderId() { return orderId; }
     public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-
     public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-
     public String getImgPath() { return imgPath; }
-    public void setImgPath(String imgPath) { this.imgPath = imgPath; }
-
     public Long getPrice() { return price; }
-    public void setPrice(Long price) { this.price = price; }
-
     public Integer getCount() { return count; }
+
+    // Setters
+    public void setId(Long id) { this.id = id; }
+    public void setOrderId(Long orderId) { this.orderId = orderId; }
+    public void setTitle(String title) { this.title = title; }
+    public void setDescription(String description) { this.description = description; }
+    public void setImgPath(String imgPath) { this.imgPath = imgPath; }
+    public void setPrice(Long price) { this.price = price; }
     public void setCount(Integer count) { this.count = count; }
+
+    @Override
+    public String toString() {
+        return "OrderItem{" +
+                "id=" + id +
+                ", orderId=" + orderId +
+                ", title='" + title + '\'' +
+                ", count=" + count +
+                '}';
+    }
 }

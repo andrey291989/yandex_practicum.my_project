@@ -1,32 +1,26 @@
 package com.example.ecommerce.entity;
 
-import jakarta.persistence.*;
-import java.util.Objects;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
-@Entity
-@Table(name = "items")
+import java.time.LocalDateTime;
+
+@Table("items")
 public class Item {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false, length = 200)
     private String title;
-
-    @Column(length = 1000)
     private String description;
-
-    @Column(name = "img_path")
     private String imgPath;
-
-    @Column(nullable = false)
     private Long price;
-
-    @Column(nullable = false)
-    private Integer count;
+    private Integer count = 0;  // Инициализируем значением 0
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     public Item() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public Item(String title, String description, String imgPath, Long price, Integer count) {
@@ -34,7 +28,9 @@ public class Item {
         this.description = description;
         this.imgPath = imgPath;
         this.price = price;
-        this.count = count;
+        this.count = count != null ? count : 0;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     // Getters
@@ -44,6 +40,8 @@ public class Item {
     public String getImgPath() { return imgPath; }
     public Long getPrice() { return price; }
     public Integer getCount() { return count; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 
     // Setters
     public void setId(Long id) { this.id = id; }
@@ -51,18 +49,7 @@ public class Item {
     public void setDescription(String description) { this.description = description; }
     public void setImgPath(String imgPath) { this.imgPath = imgPath; }
     public void setPrice(Long price) { this.price = price; }
-    public void setCount(Integer count) { this.count = count; }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Item item = (Item) o;
-        return Objects.equals(id, item.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
-    }
+    public void setCount(Integer count) { this.count = count != null ? count : 0; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

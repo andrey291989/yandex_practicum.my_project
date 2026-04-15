@@ -4,16 +4,13 @@ import com.example.ecommerce.entity.Item;
 import com.example.ecommerce.repository.ItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
+import java.util.Comparator;
 
 @Service
-@Transactional(readOnly = true)
 public class ItemService {
 
     private static final Logger log = LoggerFactory.getLogger(ItemService.class);
@@ -24,49 +21,77 @@ public class ItemService {
         this.itemRepository = itemRepository;
     }
 
-    public Page<Item> getItemsPage(String search, String sort, int pageNumber, int pageSize) {
-        int zeroBasedPage = pageNumber - 1;
+    public Flux<Item> getItemsPage(String search, String sort, int pageNumber, int pageSize) {
+        int offset = (pageNumber - 1) * pageSize;
 
-        Sort sortObj = Sort.unsorted();
+        Flux<Item> itemsFlux;
+
+        if (search != null && !search.trim().isEmpty()) {
+            log.debug("Searching for: {}", search);
+            itemsFlux = itemRepository.searchItems(search);
+        } else {
+            itemsFlux = itemRepository.findAll();
+        }
+
+        // Сортировка
+        Comparator<Item> comparator;
         if ("ALPHA".equalsIgnoreCase(sort)) {
-            sortObj = Sort.by("title").ascending();
+            comparator = Comparator.comparing(Item::getTitle, Comparator.nullsLast(String::compareTo));
             log.debug("Sorting by title ascending");
         } else if ("PRICE".equalsIgnoreCase(sort)) {
-            sortObj = Sort.by("price").ascending();
+            comparator = Comparator.comparing(Item::getPrice, Comparator.nullsLast(Long::compareTo));
             log.debug("Sorting by price ascending");
         } else {
+            comparator = Comparator.comparing(Item::getId);
             log.debug("No sorting applied");
         }
 
-        PageRequest pageRequest = PageRequest.of(zeroBasedPage, pageSize, sortObj);
+        return itemsFlux
+                .sort(comparator)
+                .skip(offset)
+                .take(pageSize);
+    }
 
-        Page<Item> result;
+    public Mono<Long> getTotalCount(String search) {
         if (search != null && !search.trim().isEmpty()) {
-            log.debug("Searching for: {}", search);
-            result = itemRepository.searchItems(search, pageRequest);
+            return itemRepository.countBySearch(search);
         } else {
-            result = itemRepository.findAll(pageRequest);
+            return itemRepository.count();
         }
-
-        log.info("Returned {} items (page {} of {}, total {})",
-                result.getNumberOfElements(), pageNumber, result.getTotalPages(), result.getTotalElements());
-
-        return result;
     }
 
-    public Item getItemById(Long id) {
+    public Mono<Item> getItemById(Long id) {
         log.debug("Fetching item by id: {}", id);
-        return itemRepository.findById(id).orElse(null);
+        return itemRepository.findById(id);
     }
 
-    public List<Item> getAllItems() {
+    public Flux<Item> getAllItems() {
         log.debug("Fetching all items");
         return itemRepository.findAll();
     }
 
-    @Transactional
-    public void updateItem(Item item) {
+    public Mono<Item> updateItem(Item item) {
         log.info("Updating item: id={}, title={}", item.getId(), item.getTitle());
-        itemRepository.save(item);
+        return itemRepository.save(item);
+    }
+
+    public Mono<Boolean> checkStockAvailability(Long itemId, int requestedQuantity) {
+        return itemRepository.findById(itemId)
+                .map(item -> {
+                    int stock = item.getCount() != null ? item.getCount() : 0;
+                    boolean available = stock >= requestedQuantity;
+                    if (!available) {
+                        log.debug("Insufficient stock for item {}. Available: {}, Requested: {}",
+                                item.getTitle(), stock, requestedQuantity);
+                    }
+                    return available;
+                })
+                .defaultIfEmpty(false);
+    }
+
+    public Mono<Integer> getAvailableStock(Long itemId) {
+        return itemRepository.findById(itemId)
+                .map(item -> item.getCount() != null ? item.getCount() : 0)
+                .defaultIfEmpty(0);
     }
 }

@@ -8,12 +8,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import jakarta.servlet.http.HttpSession;
 import java.util.Map;
 
 @Service
-@Transactional
 public class CheckoutService {
 
     private static final Logger log = LoggerFactory.getLogger(CheckoutService.class);
@@ -30,94 +31,82 @@ public class CheckoutService {
         this.cartService = cartService;
     }
 
-    /**
-     * Создание заказа на основе текущей корзины
-     * Использует пессимистическую блокировку для защиты от race condition
-     */
-    public Order createOrderFromCart(HttpSession session) {
-        Map<Long, Integer> cartItems = cartService.getCartItems(session);
+    @Transactional
+    public Mono<Order> createOrderFromCart(WebSession session) {
+        return cartService.getCartItems(session)
+                .flatMap(cartItems -> {
+                    if (cartItems.isEmpty()) {
+                        log.warn("Attempted to create order with empty cart for session: {}", session.getId());
+                        return Mono.error(new RuntimeException("Корзина пуста"));
+                    }
 
-        if (cartItems.isEmpty()) {
-            log.warn("Attempted to create order with empty cart for session: {}", session.getId());
-            throw new RuntimeException("Корзина пуста");
-        }
+                    log.info("Creating order for session: {}. Items in cart: {}", session.getId(), cartItems.size());
 
-        log.info("Creating order for session: {}. Items in cart: {}", session.getId(), cartItems.size());
-
-        // Проверка наличия товаров на складе с блокировкой
-        validateStockAvailabilityWithLock(cartItems);
-
-        // Создание заказа и обновление остатков
-        Order order = createOrderWithLock(cartItems);
-
-        // Очищаем корзину после успешного создания заказа
-        cartService.clearCart(session);
-
-        log.info("Order created successfully. Order ID: {}, Session: {}", order.getId(), session.getId());
-
-        return order;
+                    return validateStockAvailability(cartItems)
+                            .then(createOrder(cartItems))
+                            .flatMap(order -> orderService.saveOrderOnly(order))
+                            .flatMap(order -> saveOrderItems(order.getId(), cartItems)
+                                    .thenReturn(order))
+                            .flatMap(order -> cartService.clearCart(session)
+                                    .thenReturn(order));
+                });
     }
 
-    /**
-     * Проверка наличия всех товаров на складе с использованием блокировки
-     * Это предотвращает race condition при параллельных покупках
-     */
-    private void validateStockAvailabilityWithLock(Map<Long, Integer> cartItems) {
-        for (Map.Entry<Long, Integer> entry : cartItems.entrySet()) {
-            // Используем блокировку для чтения актуального состояния
-            Item item = itemRepository.findByIdWithLock(entry.getKey())
-                    .orElseThrow(() -> {
-                        log.error("Item {} not found in database", entry.getKey());
-                        return new RuntimeException("Товар с id " + entry.getKey() + " не найден");
-                    });
-
-            int requestedQuantity = entry.getValue();
-            if (item.getCount() < requestedQuantity) {
-                log.warn("Insufficient stock for item {}. Available: {}, Requested: {}",
-                        item.getTitle(), item.getCount(), requestedQuantity);
-                throw new RuntimeException("Недостаточно товара '" + item.getTitle() +
-                        "' на складе. Доступно: " + item.getCount() +
-                        ", запрошено: " + requestedQuantity);
-            }
-        }
+    private Mono<Void> validateStockAvailability(Map<Long, Integer> cartItems) {
+        return Flux.fromIterable(cartItems.entrySet())
+                .flatMap(entry -> itemRepository.findById(entry.getKey())
+                        .switchIfEmpty(Mono.error(new RuntimeException("Товар с id " + entry.getKey() + " не найден")))
+                        .flatMap(item -> {
+                            int requestedQuantity = entry.getValue();
+                            if (item.getCount() < requestedQuantity) {
+                                log.warn("Insufficient stock for item {}. Available: {}, Requested: {}",
+                                        item.getTitle(), item.getCount(), requestedQuantity);
+                                return Mono.error(new RuntimeException("Недостаточно товара '" + item.getTitle() +
+                                        "' на складе. Доступно: " + item.getCount() +
+                                        ", запрошено: " + requestedQuantity));
+                            }
+                            return Mono.just(item);
+                        }))
+                .then();
     }
 
-    /**
-     * Создание заказа и обновление остатков на складе с блокировкой
-     */
-    private Order createOrderWithLock(Map<Long, Integer> cartItems) {
+    private Mono<Order> createOrder(Map<Long, Integer> cartItems) {
         Order order = new Order();
-        long totalSum = 0;
 
-        for (Map.Entry<Long, Integer> entry : cartItems.entrySet()) {
-            // Используем блокировку для обновления товара
-            Item item = itemRepository.findByIdWithLock(entry.getKey())
-                    .orElseThrow(() -> new RuntimeException("Товар с id " + entry.getKey() + " не найден"));
+        return Flux.fromIterable(cartItems.entrySet())
+                .flatMap(entry -> itemRepository.findById(entry.getKey())
+                        .flatMap(item -> {
+                            int requestedQuantity = entry.getValue();
+                            int oldStock = item.getCount();
+                            int newCount = oldStock - requestedQuantity;
+                            item.setCount(newCount);
 
-            int requestedQuantity = entry.getValue();
-            int oldStock = item.getCount();
-            int newCount = oldStock - requestedQuantity;
+                            log.info("Updated stock: {} | Old: {} | Sold: {} | New: {}",
+                                    item.getTitle(), oldStock, requestedQuantity, newCount);
 
-            if (newCount < 0) {
-                log.error("Negative stock detected for item {}. Old: {}, Requested: {}",
-                        item.getTitle(), oldStock, requestedQuantity);
-                throw new RuntimeException("Недостаточно товара '" + item.getTitle() +
-                        "' на складе. Доступно: " + oldStock +
-                        ", запрошено: " + requestedQuantity);
-            }
+                            return itemRepository.save(item)
+                                    .thenReturn(item.getPrice() * requestedQuantity);
+                        }))
+                .reduce(0L, Long::sum)
+                .flatMap(totalSum -> {
+                    order.setTotalSum(totalSum);
+                    return Mono.just(order);
+                });
+    }
 
-            item.setCount(newCount);
-            itemRepository.save(item);
-
-            OrderItem orderItem = new OrderItem(item, requestedQuantity);
-            order.getItems().add(orderItem);
-            totalSum += item.getPrice() * requestedQuantity;
-
-            log.info("Updated stock: {} | Old: {} | Sold: {} | New: {}",
-                    item.getTitle(), oldStock, requestedQuantity, newCount);
-        }
-
-        order.setTotalSum(totalSum);
-        return orderService.saveOrder(order);
+    private Mono<Void> saveOrderItems(Long orderId, Map<Long, Integer> cartItems) {
+        return Flux.fromIterable(cartItems.entrySet())
+                .flatMap(entry -> itemRepository.findById(entry.getKey())
+                        .map(item -> {
+                            OrderItem orderItem = new OrderItem();
+                            orderItem.setOrderId(orderId);
+                            orderItem.setTitle(item.getTitle());
+                            orderItem.setDescription(item.getDescription());
+                            orderItem.setImgPath(item.getImgPath());
+                            orderItem.setPrice(item.getPrice());
+                            orderItem.setCount(entry.getValue());
+                            return orderItem;
+                        }))
+                .then();
     }
 }

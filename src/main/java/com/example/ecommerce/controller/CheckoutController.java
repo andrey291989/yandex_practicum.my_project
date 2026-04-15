@@ -6,9 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-
-import jakarta.servlet.http.HttpSession;
+import org.springframework.web.server.WebSession;
+import reactor.core.publisher.Mono;
 
 @Controller
 public class CheckoutController {
@@ -22,16 +21,15 @@ public class CheckoutController {
     }
 
     @PostMapping("/buy")
-    public String buy(HttpSession session, RedirectAttributes redirectAttributes) {
-        try {
-            Order order = checkoutService.createOrderFromCart(session);
-            redirectAttributes.addFlashAttribute("success", "Заказ успешно оформлен!");
-            log.info("Order created successfully: orderId={}", order.getId());
-            return "redirect:/orders/" + order.getId() + "?newOrder=true";
-        } catch (RuntimeException e) {
-            log.error("Failed to create order: {}", e.getMessage());
-            redirectAttributes.addFlashAttribute("error", e.getMessage());
-            return "redirect:/cart/items";
-        }
+    public Mono<String> buy(WebSession session) {
+        log.info("POST /buy - Session: {}", session.getId());
+
+        return checkoutService.createOrderFromCart(session)
+                .doOnNext(order -> log.info("Order created successfully: orderId={}", order.getId()))
+                .flatMap(order -> Mono.just("redirect:/orders/" + order.getId() + "?newOrder=true"))
+                .onErrorResume(e -> {
+                    log.error("Failed to create order: {}", e.getMessage());
+                    return Mono.just("redirect:/cart/items?error=" + e.getMessage());
+                });
     }
 }
