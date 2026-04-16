@@ -13,7 +13,7 @@ public record ItemDTO(
 ) {
     public static ItemDTO fromEntity(Item item, int cartCount) {
         if (item == null) {
-            return null;
+            throw new IllegalArgumentException("Item cannot be null");
         }
         return new ItemDTO(
                 item.getId(),

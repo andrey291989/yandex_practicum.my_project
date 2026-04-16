@@ -8,8 +8,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Comparator;
-
 @Service
 public class ItemService {
 
@@ -23,41 +21,33 @@ public class ItemService {
 
     public Flux<Item> getItemsPage(String search, String sort, int pageNumber, int pageSize) {
         int offset = (pageNumber - 1) * pageSize;
-
-        Flux<Item> itemsFlux;
+        int limit = pageSize;
 
         if (search != null && !search.trim().isEmpty()) {
-            log.debug("Searching for: {}", search);
-            itemsFlux = itemRepository.searchItems(search);
-        } else {
-            itemsFlux = itemRepository.findAll();
+            log.debug("Searching for: {} with pagination", search);
+            return itemRepository.searchItemsWithPagination(search, limit, offset);
         }
 
-        // Сортировка
-        Comparator<Item> comparator;
         if ("ALPHA".equalsIgnoreCase(sort)) {
-            comparator = Comparator.comparing(Item::getTitle, Comparator.nullsLast(String::compareTo));
-            log.debug("Sorting by title ascending");
-        } else if ("PRICE".equalsIgnoreCase(sort)) {
-            comparator = Comparator.comparing(Item::getPrice, Comparator.nullsLast(Long::compareTo));
-            log.debug("Sorting by price ascending");
+            log.debug("Sorting by title ascending with pagination");
+            return itemRepository.findAllSortedByTitleAsc(limit, offset);
+        } else if ("PRICE_ASC".equalsIgnoreCase(sort)) {
+            log.debug("Sorting by price ascending with pagination");
+            return itemRepository.findAllSortedByPriceAsc(limit, offset);
+        } else if ("PRICE_DESC".equalsIgnoreCase(sort)) {
+            log.debug("Sorting by price descending with pagination");
+            return itemRepository.findAllSortedByPriceDesc(limit, offset);
         } else {
-            comparator = Comparator.comparing(Item::getId);
-            log.debug("No sorting applied");
+            log.debug("No sorting applied, using default pagination");
+            return itemRepository.findAllSortedByTitleAsc(limit, offset);
         }
-
-        return itemsFlux
-                .sort(comparator)
-                .skip(offset)
-                .take(pageSize);
     }
 
     public Mono<Long> getTotalCount(String search) {
         if (search != null && !search.trim().isEmpty()) {
             return itemRepository.countBySearch(search);
-        } else {
-            return itemRepository.count();
         }
+        return itemRepository.count();
     }
 
     public Mono<Item> getItemById(Long id) {
@@ -93,5 +83,30 @@ public class ItemService {
         return itemRepository.findById(itemId)
                 .map(item -> item.getCount() != null ? item.getCount() : 0)
                 .defaultIfEmpty(0);
+    }
+
+    /**
+     * Уменьшает количество товара на складе
+     * @param itemId ID товара
+     * @param quantity количество для списания
+     * @return Mono с обновленным товаром или ошибкой, если недостаточно товара
+     */
+    public Mono<Item> decrementStock(Long itemId, int quantity) {
+        return itemRepository.findByIdWithLock(itemId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Товар с id " + itemId + " не найден")))
+                .flatMap(item -> {
+                    int currentStock = item.getCount() != null ? item.getCount() : 0;
+                    int newStock = currentStock - quantity;
+
+                    if (newStock < 0) {
+                        return Mono.error(new RuntimeException("Недостаточно товара '" + item.getTitle() +
+                                "' на складе. Доступно: " + currentStock +
+                                ", запрошено: " + quantity));
+                    }
+
+                    item.setCount(newStock);
+                    log.info("Updated stock for item {}: {} -> {}", itemId, currentStock, newStock);
+                    return itemRepository.save(item);
+                });
     }
 }

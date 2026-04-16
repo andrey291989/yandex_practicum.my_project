@@ -8,7 +8,7 @@ public class OrderItem {
 
     @Id
     private Long id;
-    private Long orderId;  // Внешний ключ, связь вручную
+    private Long orderId;
     private String title;
     private String description;
     private String imgPath;

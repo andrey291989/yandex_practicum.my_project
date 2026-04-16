@@ -14,8 +14,12 @@ public interface ItemRepository extends R2dbcRepository<Item, Long> {
 
     @Query("SELECT * FROM items WHERE " +
             "(:search IS NULL OR LOWER(title) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "OR LOWER(description) LIKE LOWER(CONCAT('%', :search, '%')))")
-    Flux<Item> searchItems(@Param("search") String search);
+            "OR LOWER(description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+            "ORDER BY title ASC " +
+            "LIMIT :limit OFFSET :offset")
+    Flux<Item> searchItemsWithPagination(@Param("search") String search,
+                                         @Param("limit") int limit,
+                                         @Param("offset") int offset);
 
     @Query("SELECT COUNT(*) FROM items WHERE " +
             "(:search IS NULL OR LOWER(title) LIKE LOWER(CONCAT('%', :search, '%')) " +
@@ -24,4 +28,21 @@ public interface ItemRepository extends R2dbcRepository<Item, Long> {
 
     @Query("SELECT * FROM items WHERE id = :id FOR UPDATE")
     Mono<Item> findByIdWithLock(@Param("id") Long id);
+
+    @Query("SELECT * FROM items ORDER BY title ASC LIMIT :limit OFFSET :offset")
+    Flux<Item> findAllSortedByTitleAsc(@Param("limit") int limit, @Param("offset") int offset);
+
+    @Query("SELECT * FROM items ORDER BY title DESC LIMIT :limit OFFSET :offset")
+    Flux<Item> findAllSortedByTitleDesc(@Param("limit") int limit, @Param("offset") int offset);
+
+    @Query("SELECT * FROM items ORDER BY price ASC LIMIT :limit OFFSET :offset")
+    Flux<Item> findAllSortedByPriceAsc(@Param("limit") int limit, @Param("offset") int offset);
+
+    @Query("SELECT * FROM items ORDER BY price DESC LIMIT :limit OFFSET :offset")
+    Flux<Item> findAllSortedByPriceDesc(@Param("limit") int limit, @Param("offset") int offset);
+
+    // Default pagination (backward compatibility)
+    default Flux<Item> findAllWithPagination(int limit, int offset) {
+        return findAllSortedByTitleAsc(limit, offset);
+    }
 }

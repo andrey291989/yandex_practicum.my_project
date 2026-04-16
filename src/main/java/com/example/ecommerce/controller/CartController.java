@@ -13,9 +13,6 @@ import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @Controller
 @RequestMapping("/cart")
 public class CartController {
@@ -58,59 +55,84 @@ public class CartController {
                 });
     }
 
-    @PostMapping("/items")
-    public Mono<String> updateCartItem(
-            WebSession session,
-            @RequestParam Long id,
-            @RequestParam String action,
-            @RequestParam(required = false) String from,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false, defaultValue = "ALPHA") String sort,
-            @RequestParam(required = false, defaultValue = "1") int pageNumber,
-            @RequestParam(required = false, defaultValue = "10") int pageSize) {
+    @PostMapping("/items/{id}")
+    public Mono<String> addToCart(@PathVariable Long id, WebSession session) {
+        log.info("POST /cart/items/{} - add to cart", id);
+        return cartService.addToCart(session, id)
+                .then(Mono.just("redirect:/cart/items"));
+    }
 
+    @PostMapping("/items")
+    public Mono<String> updateCartItem(@RequestParam Long id,
+                                       @RequestParam String action,
+                                       @RequestParam(required = false, defaultValue = "catalog") String from,
+                                       WebSession session) {
         log.info("POST /cart/items - id: {}, action: {}, from: {}", id, action, from);
 
-        Mono<Void> operation;
-        switch (action) {
+        switch (action.toUpperCase()) {
             case "PLUS":
-                operation = cartService.addToCart(session, id);
-                break;
+                return cartService.addToCart(session, id)
+                        .then(Mono.just(createRedirectUrl(from)));
             case "MINUS":
-                operation = cartService.decreaseQuantity(session, id);
-                break;
+                return cartService.decreaseQuantity(session, id)
+                        .then(Mono.just(createRedirectUrl(from)));
             case "DELETE":
-                operation = cartService.removeFromCart(session, id);
-                break;
+                return cartService.removeFromCart(session, id)
+                        .then(Mono.just(createRedirectUrl(from)));
             default:
-                operation = Mono.empty();
+                return Mono.just(createRedirectUrl(from));
+        }
+    }
+
+    @PatchMapping("/items/{id}")
+    public Mono<String> updateQuantity(@PathVariable Long id,
+                                       @RequestParam String action,
+                                       WebSession session) {
+        log.info("PATCH /cart/items/{} - action: {}", id, action);
+
+        if ("INCREASE".equalsIgnoreCase(action)) {
+            return cartService.addToCart(session, id)
+                    .then(Mono.just("redirect:/cart/items"));
+        } else if ("DECREASE".equalsIgnoreCase(action)) {
+            return cartService.decreaseQuantity(session, id)
+                    .then(Mono.just("redirect:/cart/items"));
+        }
+        return Mono.just("redirect:/cart/items");
+    }
+
+    @DeleteMapping("/items/{id}")
+    public Mono<String> removeFromCart(@PathVariable Long id, WebSession session) {
+        log.info("DELETE /cart/items/{} - remove from cart", id);
+        return cartService.removeFromCart(session, id)
+                .then(Mono.just("redirect:/cart/items"));
+    }
+
+    /**
+     * Создает правильный redirect URL в зависимости от источника
+     * @param from источник (catalog, cart, item и т.д.)
+     * @return redirect URL
+     */
+    private String createRedirectUrl(String from) {
+        if (from == null || from.isEmpty()) {
+            return "redirect:/";
         }
 
-        return operation.then(Mono.defer(() -> {
-            if ("cart".equals(from)) {
-                return Mono.just("redirect:/cart/items");
-            } else {
-                StringBuilder redirect = new StringBuilder("redirect:/items");
-                boolean hasParams = false;
+        // Нормализуем путь - убираем начальный слеш если есть, добавляем если нужно
+        String normalizedFrom = from.startsWith("/") ? from.substring(1) : from;
 
-                if (search != null && !search.isEmpty()) {
-                    redirect.append("?search=").append(search);
-                    hasParams = true;
-                }
-                if (sort != null && !"ALPHA".equals(sort)) {
-                    redirect.append(hasParams ? "&" : "?").append("sort=").append(sort);
-                    hasParams = true;
-                }
-                if (pageSize != 10) {
-                    redirect.append(hasParams ? "&" : "?").append("pageSize=").append(pageSize);
-                    hasParams = true;
-                }
-                if (pageNumber != 1) {
-                    redirect.append(hasParams ? "&" : "?").append("pageNumber=").append(pageNumber);
-                }
-
-                return Mono.just(redirect.toString());
-            }
-        }));
+        // Для основных страниц используем корневой путь
+        switch (normalizedFrom.toLowerCase()) {
+            case "catalog":
+            case "items":
+                return "redirect:/items";
+            case "cart":
+                return "redirect:/cart/items";
+            case "home":
+            case "":
+                return "redirect:/";
+            default:
+                // Для остальных случаев используем как есть, но с префиксом redirect:/
+                return "redirect:/" + normalizedFrom;
+        }
     }
 }

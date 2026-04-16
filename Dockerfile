@@ -1,25 +1,25 @@
 # Multi-stage build for Spring Boot application
 
 # Stage 1: Build the application
-FROM openjdk:21-jdk-slim AS builder
-
-# Install Maven
-RUN apt-get update && \
-    apt-get install -y maven && \
-    rm -rf /var/lib/apt/lists/*
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy Maven files
+# Copy Maven files first to leverage Docker layer caching
 COPY pom.xml .
+
+# Download dependencies
+RUN mvn dependency:go-offline -DskipTests
+
+# Copy source code
 COPY src ./src
 
-# Download dependencies and build the application
+# Build the application
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime image
-FROM openjdk:21-jre-slim
+FROM eclipse-temurin:21-jre-alpine
 
 # Set working directory
 WORKDIR /app
@@ -28,8 +28,8 @@ WORKDIR /app
 COPY --from=builder /app/target/ecommerce-showcase-1.0.0.jar app.jar
 
 # Create a non-root user to run the application
-RUN addgroup --system spring && \
-    adduser --system spring --ingroup spring
+RUN addgroup -S spring && \
+    adduser -S spring -G spring
 
 # Change ownership of the application file
 RUN chown spring:spring app.jar

@@ -4,15 +4,15 @@ spring:
 
   # R2DBC
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/ecommerce_db
-    username: myuser
-    password: mypassword
+    url: r2dbc:postgresql://localhost:5432/${POSTGRES_DB:ecommerce_db}
+    username: ${POSTGRES_USER:myuser}
+    password: ${POSTGRES_PASSWORD:mypassword}
 
   # JDBC DataSource для Flyway
   datasource:
-    url: jdbc:postgresql://localhost:5432/ecommerce_db
-    username: myuser
-    password: mypassword
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:ecommerce_db}
+    username: ${POSTGRES_USER:myuser}
+    password: ${POSTGRES_PASSWORD:mypassword}
     driver-class-name: org.postgresql.Driver
 
   # Flyway

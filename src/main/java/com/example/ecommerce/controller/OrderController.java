@@ -1,6 +1,8 @@
 package com.example.ecommerce.controller;
 
 import com.example.ecommerce.dto.OrderDTO;
+import com.example.ecommerce.entity.Order;
+import com.example.ecommerce.entity.OrderItem;
 import com.example.ecommerce.service.OrderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +10,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 @Controller
 @RequestMapping("/orders")
@@ -21,9 +25,6 @@ public class OrderController {
         this.orderService = orderService;
     }
 
-    /**
-     * Список заказов
-     */
     @GetMapping({"", "/"})
     public Mono<String> getOrders(Model model) {
         log.info("GET /orders");
@@ -37,19 +38,13 @@ public class OrderController {
                 });
     }
 
-    /**
-     * Детали заказа
-     */
     @GetMapping("/{id}")
-    public Mono<String> getOrderDetails(
-            @PathVariable Long id,
-            @RequestParam(required = false) Boolean newOrder,
-            Model model) {
-
+    public Mono<String> getOrderDetails(@PathVariable Long id,
+                                        @RequestParam(required = false) Boolean newOrder,
+                                        Model model) {
         log.info("GET /orders/{}", id);
 
-        return orderService.getOrderWithDetails(id)
-                .doOnNext(order -> log.info("Order details: id={}, total={}", order.id(), order.totalSum()))
+        return orderService.getOrderById(id)
                 .flatMap(order -> {
                     model.addAttribute("order", order);
                     if (newOrder != null && newOrder) {

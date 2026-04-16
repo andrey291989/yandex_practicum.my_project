@@ -1,7 +1,5 @@
 package com.example.ecommerce.service;
 
-import com.example.ecommerce.dto.OrderDTO;
-import com.example.ecommerce.dto.OrderItemDTO;
 import com.example.ecommerce.entity.Order;
 import com.example.ecommerce.entity.OrderItem;
 import com.example.ecommerce.repository.OrderItemRepository;
@@ -27,44 +25,23 @@ public class OrderService {
         this.orderItemRepository = orderItemRepository;
     }
 
-    /**
-     * Получение списка заказов (без деталей)
-     */
-    public Flux<OrderDTO> getAllOrders() {
-        return orderRepository.findAllByOrderByCreatedAtDesc()
-                .map(OrderDTO::summaryFromEntity);
+    public Flux<Order> getAllOrders() {
+        return orderRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    /**
-     * Получение заказа с деталями (позициями)
-     */
-    public Mono<OrderDTO> getOrderWithDetails(Long id) {
-        return orderRepository.findById(id)
-                .flatMap(order -> orderItemRepository.findAllByOrderId(order.getId())
-                        .map(OrderItemDTO::fromEntity)
-                        .collectList()
-                        .map(items -> OrderDTO.fromEntity(order, items))
-                );
+    public Mono<Order> getOrderById(Long id) {
+        return orderRepository.findById(id);
     }
 
-    /**
-     * Сохранение заказа и его позиций
-     */
-    public Mono<Order> saveOrder(Order order, List<OrderItem> items) {
-        return orderRepository.save(order)
-                .flatMap(savedOrder -> {
-                    // Сохраняем все позиции заказа с установленным orderId
-                    items.forEach(item -> item.setOrderId(savedOrder.getId()));
-                    return orderItemRepository.saveAll(items)
-                            .then()
-                            .thenReturn(savedOrder);
-                });
-    }
-
-    /**
-     * Сохранение только заказа (без позиций)
-     */
     public Mono<Order> saveOrderOnly(Order order) {
+        log.info("Saving order: totalSum={}", order.getTotalSum());
         return orderRepository.save(order);
+    }
+
+    public Mono<Void> saveOrderItems(List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            return Mono.empty();
+        }
+        return orderItemRepository.saveAll(orderItems).then();
     }
 }
