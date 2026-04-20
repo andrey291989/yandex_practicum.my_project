@@ -1,5 +1,7 @@
 package com.example.ecommerce.dto;
 
+import com.example.ecommerce.entity.Item;
+
 public record ItemDTO(
         Long id,
         String title,
@@ -9,15 +11,22 @@ public record ItemDTO(
         int stockCount,
         int cartCount
 ) {
-    public static ItemDTO fromEntity(com.example.ecommerce.entity.Item item, int cartCount) {
+    public static ItemDTO fromEntity(Item item, int cartCount) {
+        if (item == null) {
+            throw new IllegalArgumentException("Item cannot be null");
+        }
         return new ItemDTO(
                 item.getId(),
-                item.getTitle(),
-                item.getDescription(),
-                item.getImgPath(),
-                item.getPrice(),
-                item.getCount(),
+                item.getTitle() != null ? item.getTitle() : "",
+                item.getDescription() != null ? item.getDescription() : "",
+                item.getImgPath() != null ? item.getImgPath() : "",
+                item.getPrice() != null ? item.getPrice() : 0L,
+                item.getCount() != null ? item.getCount() : 0,
                 cartCount
         );
+    }
+
+    public static ItemDTO fromEntity(Item item) {
+        return fromEntity(item, 0);
     }
 }

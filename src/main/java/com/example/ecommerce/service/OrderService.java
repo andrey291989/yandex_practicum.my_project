@@ -1,48 +1,47 @@
 package com.example.ecommerce.service;
 
-import com.example.ecommerce.dto.OrderDetailsDTO;
-import com.example.ecommerce.dto.OrderSummaryDTO;
 import com.example.ecommerce.entity.Order;
+import com.example.ecommerce.entity.OrderItem;
+import com.example.ecommerce.repository.OrderItemRepository;
 import com.example.ecommerce.repository.OrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
-@Transactional(readOnly = true)
 public class OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository) {
         this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
     }
 
-
-    public List<OrderSummaryDTO> getAllOrderSummaries() {
-        return orderRepository.findAll().stream()
-                .map(OrderSummaryDTO::fromEntity)
-                .collect(Collectors.toList());
+    public Flux<Order> getAllOrders() {
+        return orderRepository.findAllByOrderByCreatedAtDesc();
     }
 
-
-    public OrderDetailsDTO getOrderDetails(Long id) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-
-        order.getItems().size(); // Триггерим загрузку (если нужно)
-        return OrderDetailsDTO.fromEntity(order);
+    public Mono<Order> getOrderById(Long id) {
+        return orderRepository.findById(id);
     }
 
-
-    public Order getOrderById(Long id) {
-        return orderRepository.findById(id).orElse(null);
-    }
-
-    @Transactional
-    public Order saveOrder(Order order) {
+    public Mono<Order> saveOrderOnly(Order order) {
+        log.info("Saving order: totalSum={}", order.getTotalSum());
         return orderRepository.save(order);
+    }
+
+    public Mono<Void> saveOrderItems(List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            return Mono.empty();
+        }
+        return orderItemRepository.saveAll(orderItems).then();
     }
 }
