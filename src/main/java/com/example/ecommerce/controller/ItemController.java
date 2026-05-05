@@ -5,6 +5,12 @@ import com.example.ecommerce.dto.PagingDTO;
 import com.example.ecommerce.entity.Item;
 import com.example.ecommerce.service.CartService;
 import com.example.ecommerce.service.ItemService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -17,6 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Controller
+@Tag(name = "Item", description = "Operations related to items/products")
 public class ItemController {
 
     private static final Logger log = LoggerFactory.getLogger(ItemController.class);
@@ -29,18 +36,25 @@ public class ItemController {
         this.cartService = cartService;
     }
 
+    @Operation(summary = "Redirect to items page", description = "Redirects to the main items catalog page")
+    @ApiResponse(responseCode = "302", description = "Redirect to items page")
     @GetMapping("/")
     public Mono<String> redirectToItems() {
         return Mono.just("redirect:/items");
     }
 
+    @Operation(
+        summary = "Get items catalog",
+        description = "Retrieves a paginated list of items with optional search and sorting"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved items")
     @GetMapping("/items")
     public Mono<String> getItems(
             WebSession session,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false, defaultValue = "ALPHA") String sort,
-            @RequestParam(required = false, defaultValue = "1") int pageNumber,
-            @RequestParam(required = false, defaultValue = "10") int pageSize,
+            @Parameter(description = "Search term to filter items") @RequestParam(required = false) String search,
+            @Parameter(description = "Sort order (ALPHA for alphabetical, PRICE_ASC for price ascending, PRICE_DESC for price descending)") @RequestParam(required = false, defaultValue = "ALPHA") String sort,
+            @Parameter(description = "Page number (starting from 1)") @RequestParam(required = false, defaultValue = "1") int pageNumber,
+            @Parameter(description = "Number of items per page") @RequestParam(required = false, defaultValue = "10") int pageSize,
             Model model) {
 
         int validPageNumber = Math.max(pageNumber, 1);
@@ -86,10 +100,16 @@ public class ItemController {
                 });
     }
 
+    @Operation(
+        summary = "Get item details",
+        description = "Retrieves detailed information about a specific item by ID"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved item details")
+    @ApiResponse(responseCode = "302", description = "Redirect to items page if item not found")
     @GetMapping("/items/{id}")
     public Mono<String> getItemDetails(
             WebSession session,
-            @PathVariable Long id,
+            @Parameter(description = "Item ID") @PathVariable Long id,
             Model model) {
 
         log.info("GET /items/{}", id);
