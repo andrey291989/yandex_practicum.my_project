@@ -33,3 +33,9 @@ server:
 logging:
   level:
     com.example.ecommerce: DEBUG
+
+  # Redis
+  redis:
+    host: redis
+    port: 6379
+    timeout: 2000ms
