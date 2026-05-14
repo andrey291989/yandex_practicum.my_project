@@ -1,5 +1,6 @@
 package com.example.ecommerce.service;
 
+import com.example.ecommerce.cache.ItemCacheService;
 import com.example.ecommerce.entity.Item;
 import com.example.ecommerce.repository.ItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,12 +12,11 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.time.Duration;
-import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class ItemServiceTest {
@@ -25,7 +25,7 @@ class ItemServiceTest {
     private ItemRepository itemRepository;
 
     @Mock
-    private RedisGracefulDegradationService redisDegradationService;
+    private ItemCacheService itemCacheService;
 
     private ItemService itemService;
 
@@ -33,7 +33,7 @@ class ItemServiceTest {
 
     @BeforeEach
     void setUp() {
-        itemService = new ItemService(itemRepository, redisDegradationService);
+        itemService = new ItemService(itemRepository, itemCacheService);
 
         testItem = new Item();
         testItem.setId(1L);
@@ -46,7 +46,7 @@ class ItemServiceTest {
 
     @Test
     void getItemById_WhenExists_ShouldReturnItem() {
-        when(redisDegradationService.getCachedItemWithFallback(eq("item:1"), any()))
+        when(itemCacheService.getCachedItemById(eq(1L), any()))
             .thenAnswer(invocation -> {
                 Supplier<Mono<Item>> fallback = invocation.getArgument(1);
                 return fallback.get();
@@ -60,7 +60,7 @@ class ItemServiceTest {
 
     @Test
     void getItemById_WhenNotExists_ShouldReturnEmpty() {
-        when(redisDegradationService.getCachedItemWithFallback(eq("item:99"), any()))
+        when(itemCacheService.getCachedItemById(eq(99L), any()))
             .thenAnswer(invocation -> {
                 Supplier<Mono<Item>> fallback = invocation.getArgument(1);
                 return fallback.get();
@@ -82,7 +82,10 @@ class ItemServiceTest {
 
     @Test
     void updateItem_ShouldSaveAndReturnItem() {
-        when(redisDegradationService.invalidateCache("item:1")).thenReturn(Mono.empty());
+        doAnswer(invocation -> {
+            // Метод invalidateItemCache возвращает void, просто вызываем его
+            return null;
+        }).when(itemCacheService).invalidateItemCache(1L);
         when(itemRepository.save(testItem)).thenReturn(Mono.just(testItem));
 
         StepVerifier.create(itemService.updateItem(testItem))
