@@ -1,5 +1,7 @@
 package com.example.ecommerce.service;
 
+import com.example.ecommerce.dto.OrderDTO;
+import com.example.ecommerce.dto.OrderItemDTO;
 import com.example.ecommerce.entity.Order;
 import com.example.ecommerce.entity.OrderItem;
 import com.example.ecommerce.repository.OrderItemRepository;
@@ -31,6 +33,21 @@ public class OrderService {
 
     public Mono<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
+    }
+
+    /**
+     * Получить заказ с полной информацией, включая позиции
+     * @param id ID заказа
+     * @return_mono с заказом и его позициями
+     */
+    public Mono<OrderDTO> getOrderWithItemsById(Long id) {
+        return orderRepository.findById(id)
+                .flatMap(order ->
+                    orderItemRepository.findAllByOrderId(order.getId())
+                        .map(OrderItemDTO::fromEntity)
+                        .collectList()
+                        .map(items -> OrderDTO.fromEntityWithItems(order, items))
+                );
     }
 
     public Mono<Order> saveOrderOnly(Order order) {

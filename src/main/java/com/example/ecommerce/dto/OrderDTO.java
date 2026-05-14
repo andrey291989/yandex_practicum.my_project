@@ -34,4 +34,16 @@ public record OrderDTO(
                 null
         );
     }
+
+    public static OrderDTO fromEntityWithItems(Order order, List<OrderItemDTO> items) {
+        if (order == null) {
+            return null;
+        }
+        return new OrderDTO(
+                order.getId(),
+                order.getTotalSum(),
+                order.getCreatedAt(),
+                items
+        );
+    }
 }

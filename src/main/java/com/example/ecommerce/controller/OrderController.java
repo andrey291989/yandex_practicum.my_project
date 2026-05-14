@@ -2,7 +2,6 @@ package com.example.ecommerce.controller;
 
 import com.example.ecommerce.dto.OrderDTO;
 import com.example.ecommerce.entity.Order;
-import com.example.ecommerce.entity.OrderItem;
 import com.example.ecommerce.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,8 +13,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
-
-import java.util.List;
 
 @Controller
 @RequestMapping("/orders")
@@ -37,6 +34,7 @@ public class OrderController {
         log.info("GET /orders");
 
         return orderService.getAllOrders()
+                .map(OrderDTO::summaryFromEntity)
                 .collectList()
                 .doOnNext(orders -> log.info("Found {} orders", orders.size()))
                 .flatMap(orders -> {
@@ -54,9 +52,9 @@ public class OrderController {
                                         Model model) {
         log.info("GET /orders/{}", id);
 
-        return orderService.getOrderById(id)
-                .flatMap(order -> {
-                    model.addAttribute("order", order);
+        return orderService.getOrderWithItemsById(id)
+                .flatMap(orderDTO -> {
+                    model.addAttribute("order", orderDTO);
                     if (newOrder != null && newOrder) {
                         model.addAttribute("newOrder", true);
                     }
