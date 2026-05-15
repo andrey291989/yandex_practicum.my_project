@@ -25,26 +25,25 @@ public class ItemService {
 
     public Flux<Item> getItemsPage(String search, String sort, int pageNumber, int pageSize) {
         int offset = (pageNumber - 1) * pageSize;
-        int limit = pageSize;
 
         return itemCacheService.getCachedItemsPage(search, sort, pageNumber, pageSize, () -> {
             if (search != null && !search.trim().isEmpty()) {
                 log.debug("Searching for: {} with pagination", search);
-                return itemRepository.searchItemsWithPagination(search, limit, offset);
+                return itemRepository.searchItemsWithPagination(search, pageSize, offset);
             }
 
             if ("ALPHA".equalsIgnoreCase(sort)) {
                 log.debug("Sorting by title ascending with pagination");
-                return itemRepository.findAllSortedByTitleAsc(limit, offset);
+                return itemRepository.findAllSortedByTitleAsc(pageSize, offset);
             } else if ("PRICE_ASC".equalsIgnoreCase(sort)) {
                 log.debug("Sorting by price ascending with pagination");
-                return itemRepository.findAllSortedByPriceAsc(limit, offset);
+                return itemRepository.findAllSortedByPriceAsc(pageSize, offset);
             } else if ("PRICE_DESC".equalsIgnoreCase(sort)) {
                 log.debug("Sorting by price descending with pagination");
-                return itemRepository.findAllSortedByPriceDesc(limit, offset);
+                return itemRepository.findAllSortedByPriceDesc(pageSize, offset);
             } else {
                 log.debug("No sorting applied, using default pagination");
-                return itemRepository.findAllSortedByTitleAsc(limit, offset);
+                return itemRepository.findAllSortedByTitleAsc(pageSize, offset);
             }
         });
     }
@@ -74,11 +73,6 @@ public class ItemService {
 
     public Mono<Item> updateItem(Item item) {
         log.info("Updating item: id={}, title={}", item.getId(), item.getTitle());
-
-        // Инвалидация кэша перед обновлением
-        itemCacheService.invalidateItemCache(item.getId());
-        itemCacheService.invalidateListCaches();
-
         return itemRepository.save(item)
             .doOnSuccess(updatedItem -> log.info("Item {} updated successfully", item.getId()));
     }
@@ -125,10 +119,6 @@ public class ItemService {
 
                     item.setCount(newStock);
                     log.info("Updated stock for item {}: {} -> {}", itemId, currentStock, newStock);
-
-                    // Инвалидация кэша после обновления
-                    itemCacheService.invalidateItemCache(itemId);
-
                     return itemRepository.save(item);
                 });
     }

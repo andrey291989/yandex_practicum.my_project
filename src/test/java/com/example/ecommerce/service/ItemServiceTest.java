@@ -16,7 +16,6 @@ import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class ItemServiceTest {
@@ -82,10 +81,6 @@ class ItemServiceTest {
 
     @Test
     void updateItem_ShouldSaveAndReturnItem() {
-        doAnswer(invocation -> {
-            // Метод invalidateItemCache возвращает void, просто вызываем его
-            return null;
-        }).when(itemCacheService).invalidateItemCache(1L);
         when(itemRepository.save(testItem)).thenReturn(Mono.just(testItem));
 
         StepVerifier.create(itemService.updateItem(testItem))

@@ -1,5 +1,6 @@
 package com.example.ecommerce.usecase.checkout;
 
+import com.example.ecommerce.cache.ItemCacheService;
 import com.example.ecommerce.entity.Order;
 import com.example.ecommerce.service.CartService;
 import com.example.ecommerce.usecase.checkout.steps.CartValidationStep;
@@ -10,7 +11,6 @@ import com.example.ecommerce.usecase.checkout.steps.StockValidationStep;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.ReactiveTransactionManager;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
@@ -27,6 +27,7 @@ public class OrderCheckoutUseCase {
     private static final Logger log = LoggerFactory.getLogger(OrderCheckoutUseCase.class);
 
     private final CartService cartService;
+    private final ItemCacheService itemCacheService;
     private final TransactionalOperator transactionalOperator;
 
     // Шаги оформления заказа
@@ -37,25 +38,28 @@ public class OrderCheckoutUseCase {
     private final OrderItemsCreationStep orderItemsCreationStep;
 
     public OrderCheckoutUseCase(CartService cartService,
-                               CartValidationStep cartValidationStep,
-                               StockValidationStep stockValidationStep,
-                               OrderCalculationStep orderCalculationStep,
-                               OrderCreationStep orderCreationStep,
-                               OrderItemsCreationStep orderItemsCreationStep,
-                               ReactiveTransactionManager transactionManager) {
+                                ItemCacheService itemCacheService,
+                                CartValidationStep cartValidationStep,
+                                StockValidationStep stockValidationStep,
+                                OrderCalculationStep orderCalculationStep,
+                                OrderCreationStep orderCreationStep,
+                                OrderItemsCreationStep orderItemsCreationStep,
+                                TransactionalOperator transactionalOperator) {
         this.cartService = cartService;
+        this.itemCacheService = itemCacheService;
         this.cartValidationStep = cartValidationStep;
         this.stockValidationStep = stockValidationStep;
         this.orderCalculationStep = orderCalculationStep;
         this.orderCreationStep = orderCreationStep;
         this.orderItemsCreationStep = orderItemsCreationStep;
-        this.transactionalOperator = TransactionalOperator.create(transactionManager);
+        this.transactionalOperator = transactionalOperator;
     }
 
     /**
      * Выполнить цельный сценарий оформления заказа
+     *
      * @param session веб-сессия пользователя
-     * @return_mono с созданным заказом
+     * @return Mono с созданным заказом
      */
     public Mono<Order> executeCheckout(WebSession session) {
         log.info("Starting order checkout process for session: {}", session.getId());
@@ -64,13 +68,14 @@ public class OrderCheckoutUseCase {
                 .flatMap(cartItems -> {
                     CheckoutContext context = new CheckoutContext(cartItems);
 
-                    // Выполняем последовательность шагов оформления заказа
                     return executeSteps(context)
-                            // После успешного выполнения всех шагов очищаем корзину
                             .flatMap(resultContext -> cartService.clearCart(session)
-                                    .thenReturn(resultContext.getOrder()));
+                                    .thenReturn(resultContext.getOrder()))
+                            .doOnSuccess(order -> {
+                                cartItems.keySet().forEach(itemCacheService::invalidateItemCache);
+                                itemCacheService.invalidateListCaches();
+                            });
                 })
-                // Оборачиваем в транзакцию
                 .as(transactionalOperator::transactional)
                 .doOnSuccess(order -> log.info("Order checkout completed successfully. Order ID: {}", order.getId()))
                 .doOnError(error -> log.error("Order checkout failed: {}", error.getMessage()));
