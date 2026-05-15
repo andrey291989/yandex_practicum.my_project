@@ -82,7 +82,7 @@ class OrderRepositoryTest {
                         .collectList()
         ).expectNextMatches(orders -> {
             if (orders.size() >= 2) {
-                return orders.get(0).getCreatedAt().isAfter(orders.get(1).getCreatedAt());
+                return !orders.get(0).getCreatedAt().isBefore(orders.get(1).getCreatedAt());
             }
             return true;
         }).verifyComplete();

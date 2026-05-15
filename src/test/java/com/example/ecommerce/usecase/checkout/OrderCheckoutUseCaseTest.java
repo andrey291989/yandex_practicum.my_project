@@ -1,6 +1,6 @@
 package com.example.ecommerce.usecase.checkout;
 
-import com.example.ecommerce.entity.Item;
+import com.example.ecommerce.cache.ItemCacheService;
 import com.example.ecommerce.entity.Order;
 import com.example.ecommerce.service.CartService;
 import com.example.ecommerce.usecase.checkout.steps.CartValidationStep;
@@ -14,7 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.server.MockServerWebExchange;
-import org.springframework.transaction.ReactiveTransactionManager;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.web.server.WebSession;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,7 +47,10 @@ class OrderCheckoutUseCaseTest {
     private OrderItemsCreationStep orderItemsCreationStep;
 
     @Mock
-    private ReactiveTransactionManager transactionManager;
+    private ItemCacheService itemCacheService;
+
+    @Mock
+    private TransactionalOperator transactionalOperator;
 
     private OrderCheckoutUseCase orderCheckoutUseCase;
 
@@ -61,14 +63,18 @@ class OrderCheckoutUseCaseTest {
         );
         session = exchange.getSession().block();
 
+        // Прокидываем оригинальный поток «как есть», без транзакционной обёртки
+        when(transactionalOperator.transactional((Mono<Object>) any())).thenAnswer(inv -> inv.getArgument(0));
+
         orderCheckoutUseCase = new OrderCheckoutUseCase(
                 cartService,
+                itemCacheService,
                 cartValidationStep,
                 stockValidationStep,
                 orderCalculationStep,
                 orderCreationStep,
                 orderItemsCreationStep,
-                transactionManager
+                transactionalOperator
         );
     }
 
