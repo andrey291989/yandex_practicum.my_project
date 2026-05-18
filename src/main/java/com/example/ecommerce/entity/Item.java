@@ -1,12 +1,14 @@
 package com.example.ecommerce.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Table("items")
-public class Item {
+public class Item implements Serializable {
 
     @Id
     private Long id;
@@ -15,7 +17,11 @@ public class Item {
     private String imgPath;
     private Long price;
     private Integer count = 0;  // Инициализируем значением 0
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 
     public Item() {

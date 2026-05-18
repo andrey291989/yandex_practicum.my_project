@@ -142,7 +142,7 @@
                                         </span>
                                     </div>
 
-                                    <form method="post" th:action="@{/cart/items}" class="mt-3">
+                                    <form method="post" th:action="@{/cart/items/add}" class="mt-3">
                                         <input type="hidden" name="id" th:value="${item.id}">
                                         <input type="hidden" name="search" th:value="${search}">
                                         <input type="hidden" name="sort" th:value="${sort}">

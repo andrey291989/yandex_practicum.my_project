@@ -1,18 +1,20 @@
 package com.example.ecommerce.service;
 
+import com.example.ecommerce.cache.ItemCacheService;
 import com.example.ecommerce.entity.Item;
 import com.example.ecommerce.repository.ItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import static org.mockito.ArgumentMatchers.any;
+import java.util.function.Supplier;
+
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -21,13 +23,17 @@ class ItemServiceTest {
     @Mock
     private ItemRepository itemRepository;
 
-    @InjectMocks
+    @Mock
+    private ItemCacheService itemCacheService;
+
     private ItemService itemService;
 
     private Item testItem;
 
     @BeforeEach
     void setUp() {
+        itemService = new ItemService(itemRepository, itemCacheService);
+
         testItem = new Item();
         testItem.setId(1L);
         testItem.setTitle("Тестовый товар");
@@ -39,6 +45,11 @@ class ItemServiceTest {
 
     @Test
     void getItemById_WhenExists_ShouldReturnItem() {
+        when(itemCacheService.getCachedItemById(eq(1L), any()))
+            .thenAnswer(invocation -> {
+                Supplier<Mono<Item>> fallback = invocation.getArgument(1);
+                return fallback.get();
+            });
         when(itemRepository.findById(1L)).thenReturn(Mono.just(testItem));
 
         StepVerifier.create(itemService.getItemById(1L))
@@ -48,6 +59,11 @@ class ItemServiceTest {
 
     @Test
     void getItemById_WhenNotExists_ShouldReturnEmpty() {
+        when(itemCacheService.getCachedItemById(eq(99L), any()))
+            .thenAnswer(invocation -> {
+                Supplier<Mono<Item>> fallback = invocation.getArgument(1);
+                return fallback.get();
+            });
         when(itemRepository.findById(99L)).thenReturn(Mono.empty());
 
         StepVerifier.create(itemService.getItemById(99L))

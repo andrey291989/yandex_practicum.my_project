@@ -18,11 +18,20 @@ services:
     networks:
       - ecommerce-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis-ecommerce
+    ports:
+      - "6379:6379"
+    networks:
+      - ecommerce-network
+
   app:
     build: .
     container_name: ecommerce-app
     depends_on:
       - db
+      - redis
     ports:
       - "8080:8080"
     environment:
@@ -32,6 +41,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ecommerce_db
       SPRING_DATASOURCE_USERNAME: myuser
       SPRING_DATASOURCE_PASSWORD: mypassword
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
     networks:
       - ecommerce-network
 

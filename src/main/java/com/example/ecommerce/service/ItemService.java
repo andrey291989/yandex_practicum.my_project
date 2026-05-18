@@ -1,5 +1,6 @@
 package com.example.ecommerce.service;
 
+import com.example.ecommerce.cache.ItemCacheService;
 import com.example.ecommerce.entity.Item;
 import com.example.ecommerce.repository.ItemRepository;
 import org.slf4j.Logger;
@@ -14,45 +15,55 @@ public class ItemService {
     private static final Logger log = LoggerFactory.getLogger(ItemService.class);
 
     private final ItemRepository itemRepository;
+    private final ItemCacheService itemCacheService;
 
-    public ItemService(ItemRepository itemRepository) {
+    public ItemService(ItemRepository itemRepository,
+                       ItemCacheService itemCacheService) {
         this.itemRepository = itemRepository;
+        this.itemCacheService = itemCacheService;
     }
 
     public Flux<Item> getItemsPage(String search, String sort, int pageNumber, int pageSize) {
         int offset = (pageNumber - 1) * pageSize;
-        int limit = pageSize;
 
-        if (search != null && !search.trim().isEmpty()) {
-            log.debug("Searching for: {} with pagination", search);
-            return itemRepository.searchItemsWithPagination(search, limit, offset);
-        }
+        return itemCacheService.getCachedItemsPage(search, sort, pageNumber, pageSize, () -> {
+            if (search != null && !search.trim().isEmpty()) {
+                log.debug("Searching for: {} with pagination", search);
+                return itemRepository.searchItemsWithPagination(search, pageSize, offset);
+            }
 
-        if ("ALPHA".equalsIgnoreCase(sort)) {
-            log.debug("Sorting by title ascending with pagination");
-            return itemRepository.findAllSortedByTitleAsc(limit, offset);
-        } else if ("PRICE_ASC".equalsIgnoreCase(sort)) {
-            log.debug("Sorting by price ascending with pagination");
-            return itemRepository.findAllSortedByPriceAsc(limit, offset);
-        } else if ("PRICE_DESC".equalsIgnoreCase(sort)) {
-            log.debug("Sorting by price descending with pagination");
-            return itemRepository.findAllSortedByPriceDesc(limit, offset);
-        } else {
-            log.debug("No sorting applied, using default pagination");
-            return itemRepository.findAllSortedByTitleAsc(limit, offset);
-        }
+            if ("ALPHA".equalsIgnoreCase(sort)) {
+                log.debug("Sorting by title ascending with pagination");
+                return itemRepository.findAllSortedByTitleAsc(pageSize, offset);
+            } else if ("PRICE_ASC".equalsIgnoreCase(sort)) {
+                log.debug("Sorting by price ascending with pagination");
+                return itemRepository.findAllSortedByPriceAsc(pageSize, offset);
+            } else if ("PRICE_DESC".equalsIgnoreCase(sort)) {
+                log.debug("Sorting by price descending with pagination");
+                return itemRepository.findAllSortedByPriceDesc(pageSize, offset);
+            } else {
+                log.debug("No sorting applied, using default pagination");
+                return itemRepository.findAllSortedByTitleAsc(pageSize, offset);
+            }
+        });
     }
 
     public Mono<Long> getTotalCount(String search) {
-        if (search != null && !search.trim().isEmpty()) {
-            return itemRepository.countBySearch(search);
-        }
-        return itemRepository.count();
+        return itemCacheService.getCachedTotalCount(search, () -> {
+            if (search != null && !search.trim().isEmpty()) {
+                return itemRepository.countBySearch(search);
+            }
+            return itemRepository.count();
+        });
     }
 
     public Mono<Item> getItemById(Long id) {
         log.debug("Fetching item by id: {}", id);
-        return itemRepository.findById(id);
+
+        return itemCacheService.getCachedItemById(id, () ->
+            itemRepository.findById(id)
+                .doOnNext(item -> log.debug("Item {} fetched from database", id))
+        );
     }
 
     public Flux<Item> getAllItems() {
@@ -62,8 +73,10 @@ public class ItemService {
 
     public Mono<Item> updateItem(Item item) {
         log.info("Updating item: id={}, title={}", item.getId(), item.getTitle());
-        return itemRepository.save(item);
+        return itemRepository.save(item)
+            .doOnSuccess(updatedItem -> log.info("Item {} updated successfully", item.getId()));
     }
+
 
     public Mono<Boolean> checkStockAvailability(Long itemId, int requestedQuantity) {
         return itemRepository.findById(itemId)
