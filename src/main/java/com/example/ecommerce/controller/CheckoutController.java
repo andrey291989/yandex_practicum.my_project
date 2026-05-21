@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.WebSession;
@@ -26,6 +27,7 @@ public class CheckoutController {
 
     @Operation(summary = "Create order from cart", description = "Creates a new order from the current cart contents and clears the cart")
     @ApiResponse(responseCode = "302", description = "Redirect to order details page on success, or cart page on error")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PostMapping("/buy")
     public Mono<String> buy(WebSession session) {
         log.info("POST /buy - Session: {}", session.getId());

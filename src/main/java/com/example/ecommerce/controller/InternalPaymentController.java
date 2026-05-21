@@ -23,12 +23,12 @@ import java.time.ZoneOffset;
 
 @RestController
 @Tag(name = "Payment", description = "Operations related to payment processing")
-public class PaymentController implements DefaultApi {
+public class InternalPaymentController implements DefaultApi {
 
     private final PaymentService paymentService;
 
     @Autowired
-    public PaymentController(PaymentService paymentService) {
+    public InternalPaymentController(PaymentService paymentService) {
         this.paymentService = paymentService;
     }
 

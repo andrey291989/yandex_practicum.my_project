@@ -1,0 +1,26 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/ecommerce-realm
+          jwk-set-uri: http://localhost:8081/realms/ecommerce-realm/protocol/openid-connect/certs
+
+      client:
+        registration:
+          keycloak:
+            provider: keycloak
+            client-id: ecommerce-app
+            client-secret: ecommerce-app-secret
+            authorization-grant-type: client_credentials
+            scope: openid
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8081/realms/ecommerce-realm
+            user-info-uri: http://localhost:8081/realms/ecommerce-realm/protocol/openid-connect/userinfo
+            user-name-attribute: preferred_username
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG

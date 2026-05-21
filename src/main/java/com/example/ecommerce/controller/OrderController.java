@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +30,7 @@ public class OrderController {
 
     @Operation(summary = "Get all orders", description = "Retrieves a list of all customer orders")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved orders")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @GetMapping({"", "/"})
     public Mono<String> getOrders(Model model) {
         log.info("GET /orders");
@@ -46,6 +48,7 @@ public class OrderController {
     @Operation(summary = "Get order details", description = "Retrieves detailed information about a specific order by ID")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved order details")
     @ApiResponse(responseCode = "302", description = "Redirect to orders page if order not found")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @GetMapping("/{id}")
     public Mono<String> getOrderDetails(@Parameter(description = "Order ID") @PathVariable Long id,
                                         @Parameter(description = "Flag indicating if this is a newly created order") @RequestParam(required = false) Boolean newOrder,

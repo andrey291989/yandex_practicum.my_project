@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.ui.Model;
@@ -36,6 +37,7 @@ public class CartController {
 
     @Operation(summary = "Get cart items", description = "Retrieves all items currently in the shopping cart")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved cart items")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @GetMapping("/items")
     public Mono<String> getCartItems(WebSession session, Model model) {
         log.info("GET /cart/items");
@@ -66,6 +68,7 @@ public class CartController {
 
     @Operation(summary = "Add item to cart", description = "Adds a specific item to the shopping cart")
     @ApiResponse(responseCode = "302", description = "Redirect to cart items page")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PostMapping("/items/{id}")
     public Mono<String> addToCart(@Parameter(description = "Item ID to add to cart") @PathVariable Long id, WebSession session) {
         log.info("POST /cart/items/{} - add to cart", id);
@@ -75,6 +78,7 @@ public class CartController {
 
     @Operation(summary = "Update cart item", description = "Updates a cart item based on the specified action (PLUS, MINUS, DELETE)")
     @ApiResponse(responseCode = "302", description = "Redirect to appropriate page")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PostMapping("/items")
     public Mono<String> updateCartItem(@Parameter(description = "Item ID to update") @RequestParam(required = false) Long id,
                                        @Parameter(description = "Action to perform (PLUS, MINUS, DELETE)") @RequestParam(required = false) String action,
@@ -114,6 +118,7 @@ public class CartController {
      * Alternative method to handle form data submission for adding items to cart
      * This method specifically handles the case where form data is submitted via POST
      */
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PostMapping("/items/add")
     public Mono<String> addItemToCart(ServerWebExchange exchange,
                                       @Parameter(description = "Source page for redirect") @RequestParam(required = false, defaultValue = "catalog") String from,
@@ -147,6 +152,7 @@ public class CartController {
 
     @Operation(summary = "Update item quantity", description = "Increases or decreases the quantity of a specific item in the cart")
     @ApiResponse(responseCode = "302", description = "Redirect to cart items page")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PatchMapping("/items/{id}")
     public Mono<String> updateQuantity(@Parameter(description = "Item ID to update") @PathVariable Long id,
                                        @Parameter(description = "Action to perform (INCREASE, DECREASE)") @RequestParam String action,
@@ -165,6 +171,7 @@ public class CartController {
 
     @Operation(summary = "Remove item from cart", description = "Removes a specific item from the shopping cart")
     @ApiResponse(responseCode = "302", description = "Redirect to cart items page")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @DeleteMapping("/items/{id}")
     public Mono<String> removeFromCart(@Parameter(description = "Item ID to remove from cart") @PathVariable Long id, WebSession session) {
         log.info("DELETE /cart/items/{} - remove from cart", id);
