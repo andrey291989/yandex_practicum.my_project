@@ -1,10 +1,10 @@
-# E-commerce Showcase Application
+# Демонстрационное приложение интернет-магазина
 
 Демонстрационное приложение интернет-магазина с возможностью просмотра товаров, добавления в корзину и оформления заказов. Приложение состоит из двух основных компонентов: основного веб-приложения и RESTful-сервиса платежей, интегрированных через OAuth2.
 
 ## Архитектура проекта
 
-Проект представляет собой мультимодульное приложение с двумя основными компонентами:
+Проект представляет собой мультимодульное Maven-приложение с двумя основными компонентами:
 - **Основное веб-приложение** (порт 8080) - фронтенд и бизнес-логика интернет-магазина
 - **RESTful-сервис платежей** (порт 8082) - backend сервис для обработки платежей
 
@@ -70,7 +70,7 @@ mvn clean package
 
 ```bash
 # Сборка образа основного приложения
-docker build -t ecommerce-showcase .
+docker build -t ecommerce-showcase -f Dockerfile.app .
 
 # Сборка образа платежного сервиса
 docker build -t payment-service -f Dockerfile.payment .
@@ -150,29 +150,37 @@ chmod +x init-keycloak.sh
 ### Структура проекта
 
 ```
-src/
-├── main/
-│   ├── java/com/example/ecommerce/
-│   │   ├── cache/          # Кэширование (Redis)
-│   │   ├── config/         # Конфигурации Spring
-│   │   ├── controller/     # Контроллеры основного приложения
-│   │   ├── dto/            # Data Transfer Objects
-│   │   ├── entity/         # Сущности базы данных
-│   │   ├── repository/     # Репозитории данных
-│   │   ├── service/        # Сервисы бизнес-логики
-│   │   ├── usecase/        # Бизнес-кейсы (оформление заказа)
-│   │   └── payment/        # Платежный сервис (отдельный пакет)
-│   └── resources/
-│       ├── api/            # OpenAPI спецификации
-│       ├── db/migration/   # Миграции базы данных (Flyway)
-│       └── templates/      # Шаблоны Thymeleaf
-└── test/
-    └── java/com/example/ecommerce/
-        ├── controller/     # Тесты контроллеров
-        ├── integration/    # Интеграционные тесты
-        ├── repository/     # Тесты репозиториев
-        ├── service/        # Тесты сервисов
-        └── payment/        # Тесты платежного сервиса
+ecommerce-showcase/              # Родительский проект
+├── ecommerce-app/               # Модуль основного приложения
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/example/ecommerce/
+│   │   │   │   ├── cache/          # Кэширование (Redis)
+│   │   │   │   ├── config/         # Конфигурации Spring
+│   │   │   │   ├── controller/     # Контроллеры основного приложения
+│   │   │   │   ├── dto/            # Data Transfer Objects
+│   │   │   │   ├── entity/         # Сущности базы данных
+│   │   │   │   ├── repository/     # Репозитории данных
+│   │   │   │   ├── service/        # Сервисы бизнес-логики
+│   │   │   │   └── usecase/        # Бизнес-кейсы (оформление заказа)
+│   │   │   └── resources/
+│   │   │       ├── db/migration/   # Миграции базы данных (Flyway)
+│   │   │       └── templates/      # Шаблоны Thymeleaf
+│   │   └── test/
+│   └── pom.xml                  # Конфигурация модуля
+├── payment-service/             # Модуль платежного сервиса
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/example/ecommerce/payment/
+│   │   │   │   ├── config/         # Конфигурации Spring Security
+│   │   │   │   ├── controller/     # REST контроллеры
+│   │   │   │   ├── service/        # Сервисы обработки платежей
+│   │   │   │   └── PaymentServiceApplication.java  # Main-класс
+│   │   │   └── resources/
+│   │   │       └── payment-service.yaml  # OpenAPI спецификация
+│   │   └── test/
+│   └── pom.xml                  # Конфигурация модуля
+└── pom.xml                      # Конфигурация родительского проекта
 ```
 
 ### Запуск в режиме разработки
@@ -180,18 +188,31 @@ src/
 #### Основное приложение
 
 ```bash
-# Запуск основного приложения
-mvn spring-boot:run
+# Запуск основного приложения из корневой директории
+mvn spring-boot:run -pl ecommerce-app
 
 # Запуск с определенным профилем
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn spring-boot:run -pl ecommerce-app -Dspring-boot.run.profiles=dev
 ```
 
 #### Платежный сервис (отдельно)
 
 ```bash
-# Запуск платежного сервиса отдельно
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082 --spring.profiles.active=payment"
+# Запуск платежного сервиса из корневой директории
+mvn spring-boot:run -pl payment-service
+
+# Запуск платежного сервиса с указанием порта
+mvn spring-boot:run -pl payment-service -Dspring-boot.run.arguments="--server.port=8082"
+```
+
+#### Запуск из jar-файлов
+
+```bash
+# Запуск основного приложения
+java -jar ecommerce-app/target/ecommerce-app-1.0.0.jar
+
+# Запуск платежного сервиса
+java -jar payment-service/target/payment-service-1.0.0-exec.jar --server.port=8082
 ```
 
 ### Запуск тестов
@@ -240,23 +261,37 @@ mvn test -Dtest=*Payment*
 #### Быстрая сборка (без тестов)
 
 ```bash
+# Сборка всего проекта
 mvn clean package -DskipTests
+
+# Сборка только модуля основного приложения
+mvn clean package -DskipTests -pl ecommerce-app
+
+# Сборка только модуля платежного сервиса
+mvn clean package -DskipTests -pl payment-service
 ```
 
 #### Полная сборка (с тестами)
 
 ```bash
+# Сборка всего проекта
 mvn clean package
+
+# Сборка с установкой в локальный репозиторий (рекомендуется для правильного разрешения зависимостей)
+mvn clean install -DskipTests
 ```
 
-#### Сборка с конкретными профилями
+#### Сборка отдельных модулей
 
 ```bash
-# Сборка для production
-mvn clean package -Pprod
+# Сборка модуля платежного сервиса (с генерацией API)
+mvn clean package -pl payment-service
 
-# Сборка для development
-mvn clean package -Pdev
+# Сборка модуля основного приложения
+mvn clean package -pl ecommerce-app
+
+# Сборка с пропуском модуля платежного сервиса
+mvn clean package -pl '!payment-service'
 ```
 
 ## Безопасность

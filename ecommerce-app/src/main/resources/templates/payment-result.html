@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head th:replace="~{layout :: head('Результат создания платежа')}"></head>
+<body>
+<!-- Навигационная панель -->
+<div th:replace="~{fragments/navbar :: navbar}"></div>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Результат создания платежа</h2>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5>Информация о платеже</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info" th:if="${result}">
+                        <strong>Результат:</strong> <span th:text="${result}"></span>
+                    </div>
+
+                    <div class="alert alert-warning" th:if="${!result}">
+                        <strong>Результат:</strong> Не удалось получить результат создания платежа
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <a href="/items" class="btn btn-secondary">Вернуться в магазин</a>
+                <a href="/orders" class="btn btn-primary">Просмотреть заказы</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:replace="~{layout :: footer}"></script>
+</body>
+</html>

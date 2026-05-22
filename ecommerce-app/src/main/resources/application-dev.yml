@@ -1,0 +1,6 @@
+spring:
+  # Redis для dev-окружения
+  redis:
+    host: redis
+    port: 6379
+    timeout: 2000ms
