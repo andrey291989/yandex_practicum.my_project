@@ -26,12 +26,31 @@ services:
     networks:
       - ecommerce-network
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    container_name: keycloak-auth-server
+    environment:
+      KC_DB: dev-file
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: true
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+    command: start-dev
+    ports:
+      - "8081:8080"
+    networks:
+      - ecommerce-network
+
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.app
     container_name: ecommerce-app
     depends_on:
       - db
       - redis
+      - keycloak
     ports:
       - "8080:8080"
     environment:
@@ -43,6 +62,33 @@ services:
       SPRING_DATASOURCE_PASSWORD: mypassword
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
+      SPRING_PROFILES_ACTIVE: security
+    networks:
+      - ecommerce-network
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.payment
+    container_name: payment-service
+    depends_on:
+      - db
+      - redis
+      - keycloak
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      SPRING_R2DBC_URL: r2dbc:postgresql://db:5432/ecommerce_db
+      SPRING_R2DBC_USERNAME: myuser
+      SPRING_R2DBC_PASSWORD: mypassword
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ecommerce_db
+      SPRING_DATASOURCE_USERNAME: myuser
+      SPRING_DATASOURCE_PASSWORD: mypassword
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_PROFILES_ACTIVE: security
+      SPRING_APPLICATION_NAME: payment-service
     networks:
       - ecommerce-network
 

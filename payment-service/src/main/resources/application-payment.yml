@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: payment-service
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/ecommerce-realm
+          jwk-set-uri: http://localhost:8081/realms/ecommerce-realm/protocol/openid-connect/certs
+
+server:
+  port: 8082
+
+logging:
+  level:
+    com.example.ecommerce.payment: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
